@@ -16,13 +16,14 @@
 
 
 int main(int argc, char ** argv) {
-	if(argc == 0){
+	if(argc < 2){
 		// no argument given
 		UdpTcpArgs::help(argc,argv);
 		return 1;
 	}
 
 	UdpTcpArgs * args = new UdpTcpArgs(argc,argv);
+
 
 	if(args->isset(tcpAddress)){
 		if(args->isset(tcpPort)){
@@ -34,17 +35,28 @@ int main(int argc, char ** argv) {
 
 	if(args->isset(tcpServerPort)){
 		// expect to be a server
-		new TcpSrvSocket(args->val(tcpPort), 10, args->arg(tcpAddress));
+		TcpSrvSocket * srvSocket = new TcpSrvSocket(args->val(tcpServerPort), 10, args->arg(tcpAddress));
+		if(srvSocket->_fd < 0){
+			return 1; // dont pass to setting up udp if failed
+		}else{
+			fprintf(stdout,"TcpServer on :%ld\n", args->val(tcpServerPort) );
+		}
 	}
 
 	if(args->isset(udpLocalPort)){
 		if(args->isset(udpAddress)){
 			if(args->isset(udpPort)){
 				// expected to have an udp friend
-				printf("Set up udp %s to %s:%s\n", args->arg(udpLocalPort), args->arg(udpAddress), args->arg(udpPort));
 				UdpSocket * udpsock = new UdpSocket();
-				udpsock->setup(args->val(udpLocalPort));
+				udpsock->setup(args->arg(udpLocalAddress), args->val(udpLocalPort));
 				udpsock->setDestination(args->arg(udpAddress),(int)args->val(udpPort));
+
+				if(udpsock->_fd >=0){
+					printf("\nSet up udp %s %s to %s:%s\n", args->arg(udpLocalAddress), args->arg(udpLocalPort), args->arg(udpAddress), args->arg(udpPort));
+				}else{
+					printf("\nFailed udp %s %s to %s:%s\n", args->arg(udpLocalAddress), args->arg(udpLocalPort), args->arg(udpAddress), args->arg(udpPort));
+				}
+
 
 				if(args->isset(som)){
 					udpsock->setSom(args->val(som));
@@ -65,7 +77,7 @@ int main(int argc, char ** argv) {
 
 	Poll * mpoll = new Poll();
 
-	printf("Starting loop\n");
+	printf("\nStarting loop\n");
 	// will be here as long as program runs
 	mpoll->loop();
 	printf("Stopped loop\n");

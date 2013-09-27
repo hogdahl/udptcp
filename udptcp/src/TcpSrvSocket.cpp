@@ -22,15 +22,15 @@ TcpSrvSocket::TcpSrvSocket(int tcpport, int maxconn, const char * acceptFrom){
     sa.sin_port= htons((u_short)tcpport);
 
     if ((_fd = socket(AF_INET, SOCK_STREAM,0)) >= 0){
-        int reuse = 1;
         // try to reuse old port, result does not really matter
+        // int reuse = 1;
         // setsockopt(_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
 
         if (bind(_fd ,(struct sockaddr*) &sa,sizeof(sa)) < 0)
           {
             close(_fd);
             _fd = -1;
-            printf("Failed to bind %d to socket", tcpport);
+            printf("Failed to bind %d to socket\n", tcpport);
             state = ST_EXIT;
             return;
           }
@@ -59,9 +59,10 @@ bool TcpSrvSocket::eventHandler(pollfd * pfd){
 		        // cause poll we use none blocking
 		        fcntl(sock, F_SETFL, O_NONBLOCK);
 				tsock->_fd = sock;
+				fprintf(stdout, "Received TCP conn from %s:%d\n",inet_ntoa(from.sin_addr), ntohs(from.sin_port));
 				return true;
 			}else{
-				fprintf(stderr, "Received TCP conn from unknown %s:%d",inet_ntoa(from.sin_addr), ntohs(from.sin_port));
+				fprintf(stderr, "Received TCP conn from unknown %s:%d\n",inet_ntoa(from.sin_addr), ntohs(from.sin_port));
 			}
 		}
 	}

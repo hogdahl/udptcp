@@ -24,6 +24,16 @@ public:
 	UdpSocket();
 	virtual ~UdpSocket();
 
+	virtual const char * className(){ return "UdpSocket"; }
+
+	/**
+	 * do something on timeout
+	 */
+	virtual void timeout(){
+		buffer.flush();
+	};
+
+
 	/** Callback from poll loop when event is triggered
 	 * @returns false if work is done and should be deleted
 	 */
@@ -37,7 +47,7 @@ public:
 	/**
 	 * Set up this socket for receiving
 	 */
-	void setup(int port);
+	void setup(const char * localAddress, int port);
 
 
 	/**

@@ -18,6 +18,9 @@ public:
 	TcpSrvSocket(int tcpport, int maxconn, const char * acceptFrom);
 	virtual ~TcpSrvSocket(){} // closed by FdList
 
+	virtual const char * className(){ return "TcpSrvSocket"; }
+
+
 	/** Callback from poll loop when event is triggered
 	 * @returns false if work is done and should be deleted
 	 */

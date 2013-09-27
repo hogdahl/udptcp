@@ -9,6 +9,8 @@
 #include "Message.h"
 #include <unistd.h>
 
+#include <stdio.h>
+
 // static
 ListHead FdList::list;
 bool FdList::closeall = false;
@@ -92,6 +94,7 @@ bool FdList::allTimeOut() {
 			delete todel;
 		}else{
 			if(fdp->state == ST_EXIT){
+				fprintf(stderr,"%s Requested EXIT",fdp->className());
 				return false;
 			}
 			fdp = (FdList *)fdp->getNext();

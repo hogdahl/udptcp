@@ -16,6 +16,13 @@
 #include <stdio.h>
 #include <fcntl.h>
 
+// define DEBUG to debug udp splitting
+
+#ifdef DEBUG
+#define DUMP dump
+#else
+#define DUMP(...)  //dump
+#endif
 
 UdpSocket::UdpSocket() {
 	filter = MF_UDP_WRT;
@@ -53,10 +60,29 @@ bool UdpSocket::eventHandler(pollfd * pfd){
 	return true;
 }
 
+#ifdef DEBUG
+void dump (const char * msg, int len, const char * txt = ""){
+	fprintf(stderr, "MSG%s:",txt);
+	while(len--){
+		fprintf(stderr, " %02X", ((*msg++)&0xFF));
+	}
+	fprintf(stderr, "\n");
+}
+#endif
+
 void UdpSocket::msgHandler(Message * msg){
 	// This is a good spot to make packets from a stream
 	// We will check for som and eom bytes in stream
 
+	if(msg->length == 0){
+		// new connect indicated
+		// a dos attack would flush some messages but most would not be in buffer at all
+		buffer.flush();
+	}
+
+	const char * start = msg->buffer;
+	const char * end = msg->buffer + msg->length;
+	int msglen = msg->length;
 	if(_eom > -1){
 		// first, do we have buffered data
 		if(buffer.length()){
@@ -67,30 +93,60 @@ void UdpSocket::msgHandler(Message * msg){
 				if(buffer.addData(msg->buffer,eom + 1 - msg->buffer)){
 					int len = 65000; // larger then buffer
 					char * wp = buffer.readData(&len); // buffer is auto reset
-					write(wp,len);
+					if(_eom == _som){
+						if(len > 2){
+							write(wp,len);
+							DUMP (wp,len,"bf");
+						}else{
+							// eom  and som is same and no data seems wrong
+							buffer.flush();
+						}
+					}else{
+						if(len > 1){
+							write(wp,len);
+							DUMP (wp,len,"BF");
+							msglen -= (eom - start) + 1;
+							start = eom + 1;
+						}
+					}
 				}else{
 					// nothing to do about full buffer
 					buffer.flush();
-					return;
+					// msg could still be ok
 				}
 			}else{
 				buffer.addData(msg->buffer,msg->length);
+				DUMP (msg->buffer,msg->length,"To Buffer");
 			}
 			return;
 		}
 		// so no data in buffer, do we have a start of message
 		if(_som > -1){
-			char * som = (char *)memchr((void *)msg->buffer, _som, (unsigned long int)msg->length);
-			if(som){
-				// got som, do we have eom
-				char * eom = (char *)memchr((void *)msg->buffer, _eom, (unsigned long int)msg->length);
-				if(eom){
-					// nice , got all we want
-					write(som, eom + 1 - som);
-				}else{
-					// got start but not end, put msg in buffer
-					int len = msg->length + som - msg->buffer;
-					buffer.addData(som,len);
+			while(msglen > 0){
+				char * som = (char *)memchr((void *)start, _som, (unsigned long int)msglen);
+				if(som){
+					// got som, do we have eom
+					const char * next = som+1;
+					char * eom = (char *)memchr((void *)next, _eom, (unsigned long int)(end - next));
+					if(eom){
+						// nice , got all we want... or do we
+						if(eom - som > 1){
+							write(som, eom + 1 - som); // +1 to include eom
+							DUMP (som, eom + 1 - som,"msg");
+							msglen -= (int)(eom - start) + 1;
+							start = eom + 1;
+						}else{
+							// something wrong here !
+							//just pass som
+							msglen = end - next;
+							start = next;
+						}
+						// is there more ?
+					}else{
+						// got start but not end, put msg in buffer
+						buffer.addData(som,(int)(end - som));
+						break;
+					}
 				}
 			}
 		}else{
@@ -114,16 +170,24 @@ void UdpSocket::msgHandler(Message * msg){
 /**
  * Set up this socket for receiving
  */
-void UdpSocket::setup(int port){
+void UdpSocket::setup(const char * localAddress, int port){
 	int sock;
+	struct hostent * hp = 0;
+	if(localAddress[0]){
+		hp = gethostbyname(localAddress);
+	}
 	if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))!=-1){
 		events=POLLIN; // do not use on UDP |POLLHUP;
 		sockaddr_in si_me;
 		memset((char *) &si_me, 0, sizeof(si_me));
 		si_me.sin_family = AF_INET;
 		si_me.sin_port = htons(port);
-		si_me.sin_addr.s_addr = htonl(INADDR_ANY);
-
+		if(localAddress[0]){
+		      in_addr * addrp = (in_addr *)hp->h_addr;
+		      si_me.sin_addr = *addrp;
+		}else{
+			si_me.sin_addr.s_addr = htonl(INADDR_ANY);
+		}
 		//int reuse = 1;
 		//if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1){
 			//printf("UdpSocket SO_REUSEADDR FAILED");
@@ -135,7 +199,7 @@ void UdpSocket::setup(int port){
 	        fcntl(sock, F_SETFL, O_NONBLOCK);
 		}else{
 			close(sock);
-			fprintf(stderr,"UDP failed to bind port %d\n", port);
+			fprintf(stderr,"UDP failed to bind %s %d\n",localAddress, port);
 			state = ST_EXIT;
 		}
 	}else{
@@ -174,7 +238,7 @@ int UdpSocket::write(char * data, int len){
 		socklen_t slen = sizeof(si_to);
 		int res = sendto(_fd, data, len, 0, (sockaddr*)&si_to, slen);
 		if(res == len){
-			printf("Udp written");
+			//printf("Udp written");
 			return len;
 		}else{
 			printf("Udp write failed");

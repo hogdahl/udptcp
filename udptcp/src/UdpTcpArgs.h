@@ -10,10 +10,10 @@
 
 #include "Args.h"
 
-#define ARGLIST  { "tcpAddress","tcpPort","tcpServerPort","udpLocalPort","udpAddress","udpPort","som","eom" }
+#define ARGLIST  { "tcpAddress","tcpPort","tcpServerPort","udpLocalPort","udpLocalAddress","udpAddress","udpPort","som","eom" }
 #define REQUIRED {       1     ,    0    ,     1      ,    1     }
 
-enum       argids{   tcpAddress,  tcpPort,  tcpServerPort,  udpLocalPort, udpAddress,udpPort, som, eom, argsize};
+enum       argids{   tcpAddress,  tcpPort,  tcpServerPort,  udpLocalPort, udpLocalAddress, udpAddress,udpPort, som, eom, argsize};
 
 
 class UdpTcpArgs: public Args {

@@ -11,7 +11,7 @@
 
 Poll::Poll() {
 	// TODO Auto-generated constructor stub
-
+	doExit = false;
 }
 
 Poll::~Poll() {
@@ -44,6 +44,7 @@ void Poll::doPoll() {
 	    			  fdp->eventHandler(&pfdp[i]);
 	    			  if(fdp->state >= ST_DELETE){
 	    				  if(fdp->state == ST_EXIT){
+	    					  fprintf(stderr, "%s requested EXIT\n", fdp->className());
 	    					  doExit = true;
 	    				  }else{
 	    					 delete fdp;

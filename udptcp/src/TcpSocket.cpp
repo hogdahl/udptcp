@@ -17,6 +17,8 @@
 TcpSocket::TcpSocket() {
 	server = NULL;
 	filter = MF_TCP_WRT;
+	state = ST_CONNECTED; // if we create socket this way, its from srvsocket
+	events = POLLIN;
 }
 
 TcpSocket::TcpSocket(const char * address, int serverport) {
@@ -48,7 +50,12 @@ bool TcpSocket::eventHandler(pollfd * pfd){
 		}else{
 			state = ST_DELETE;
 		}
-		fprintf(stderr,"Tcp connection failed\n");
+		if(pfd->revents & POLLERR){
+			fprintf(stderr,"Tcp connection failed\n");
+		}
+		if(pfd->revents & POLLHUP){
+			fprintf(stderr,"Tcp hangup\n");
+		}
 		return true;
 	}
 
@@ -56,12 +63,17 @@ bool TcpSocket::eventHandler(pollfd * pfd){
 		state = ST_CONNECTED;
 		setEvents(POLLERR|POLLHUP|POLLIN|POLLPRI);
 		printf("TCP connected\n");
+		Message * msg = Message::getFreeMessage(MSG_DEFAULT_SIZE, MF_TCP_READ|MF_UDP_WRT,&msgOutQue);
+		msg->length = 0; // send an empty message to indicate connect
+		send(msg);
+		msg->unlink();
 	}
 
 	if(pfd->revents & POLLIN){
 		// received data
 		Message * msg = Message::getFreeMessage(MSG_DEFAULT_SIZE, MF_TCP_READ|MF_UDP_WRT,&msgOutQue);
 		msg->length = recv(_fd,msg->buffer,msg->maxSize(),0);
+		//fprintf(stdout,"TCP rcv %d", msg->length);
 		if(msg->length > 0){
 			send(msg);
 		}
@@ -77,9 +89,12 @@ void TcpSocket::msgHandler(Message * msg){
 	if(filter & msg->filter){
 		// our message
 		if(_fd >= 0){
-			write(msg->buffer,msg->length);
+			if(state == ST_CONNECTED){
+				write(msg->buffer,msg->length);
+			}
 		}else{
-			connect();
+			if(server != NULL)
+				connect();
 		}
 	}
 }

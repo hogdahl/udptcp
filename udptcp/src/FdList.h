@@ -35,6 +35,8 @@ public:
 	FdList(int fd);
 	virtual ~FdList();
 
+	virtual const char * className(){ return "FdList"; }
+
 	/** Callback from poll loop when event is triggered
 	 * @returns false if work is done and should be deleted
 	 */

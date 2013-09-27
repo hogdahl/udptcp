@@ -21,6 +21,9 @@ public:
 	TcpSocket(const char * address, int serverport);
 	virtual ~TcpSocket();
 
+	virtual const char * className(){ return "TcpSocket"; }
+
+
 	/**
 	 * do something on timeout
 	 */
